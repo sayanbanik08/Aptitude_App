@@ -21,6 +21,56 @@ export default function Home({ navigate, stats, startMockTest }) {
         </div>
       </div>
 
+      {/* Footer */}
+      <footer className="home-footer">
+        <div className="footer-container">
+          <div className="footer-main">
+            <div className="footer-brand">
+              <span className="footer-logo">IQ</span>
+              <p className="footer-desc">
+                A premium preparation platform for quantitative, logical reasoning, and verbal ability exams. Practice, track your metrics, and ace your tests.
+              </p>
+            </div>
+            
+            <div className="footer-links-group">
+              <div className="footer-column">
+                <h4>Practice</h4>
+                <ul>
+                  <li>
+                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('categories') }}>
+                      Practice Categories
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#" onClick={(e) => { e.preventDefault(); startMockTest() }}>
+                      Take Mock Test
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="footer-column">
+                <h4>Dashboard</h4>
+                <ul>
+                  <li>
+                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('dashboard') }}>
+                      Performance Stats
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div className="footer-bottom">
+            <p>&copy; {new Date().getFullYear()} AptitudeX. All rights reserved.</p>
+            <div className="footer-meta-links">
+              <span>Built for Excellence</span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
+
