@@ -34,4 +34,4 @@ export const categoryMeta = {
     gradient: "linear-gradient(135deg, #8b5cf6, #6366f1)",
     description: "Advanced numerical & data interpretation"
   }
-};
+}
