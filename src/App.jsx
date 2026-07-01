@@ -36,6 +36,26 @@ export default function App() {
   })
   const [addQuestionCategory, setAddQuestionCategory] = useState(null)
 
+  // Fetch questions from MongoDB backend
+  useEffect(() => {
+    const fetchCloudQuestions = async () => {
+      try {
+        const response = await fetch('/api/questions')
+        if (response.ok) {
+          const dbQuestions = await response.json()
+          setCustomQuestions(dbQuestions)
+          // Optionally sync to local storage
+          const data = getStorageData()
+          data.customQuestions = dbQuestions
+          saveStorageData(data)
+        }
+      } catch (err) {
+        console.warn('Failed to fetch from cloud db:', err)
+      }
+    }
+    fetchCloudQuestions()
+  }, [])
+
   const activeQuestionBank = React.useMemo(() => {
     const merged = {}
     const allKeys = new Set([...Object.keys(questionBank), ...Object.keys(customQuestions)])
@@ -470,7 +490,20 @@ export default function App() {
       })
 
       if (response.ok) {
-        showToast('Question saved directly to questions.js!', 'success')
+        const dataRes = await response.json()
+        const savedQ = dataRes.inserted || newQuestion
+        showToast('Question saved to cloud database!', 'success')
+        
+        const updatedCustom = {
+          ...customQuestions,
+          [categoryKey]: [...(customQuestions[categoryKey] || []), savedQ]
+        }
+        setCustomQuestions(updatedCustom)
+        
+        const data = getStorageData()
+        data.customQuestions = updatedCustom
+        saveStorageData(data)
+        
         navigate('categories')
         return
       }
@@ -489,7 +522,7 @@ export default function App() {
     data.customQuestions = updatedCustom
     saveStorageData(data)
 
-    showToast('Question saved to browser storage!', 'success')
+    showToast('Question saved locally (cloud disconnected)!', 'warning')
     navigate('categories')
   }
 
@@ -544,7 +577,7 @@ export default function App() {
           })
 
           if (response.ok) {
-            showToast('Question deleted successfully!', 'success')
+            showToast('Question deleted from cloud!', 'success')
             
             // Re-sync local storage backup
             const updatedCustom = {
@@ -556,8 +589,6 @@ export default function App() {
             data.customQuestions = updatedCustom
             saveStorageData(data)
             
-            // Reload page to reflect updated file structure
-            setTimeout(() => window.location.reload(), 1000)
             return
           }
         } catch (e) {
