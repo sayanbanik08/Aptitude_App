@@ -33,14 +33,13 @@ async function connectDB() {
   }
 }
 
-connectDB();
-
 export default defineConfig({
   plugins: [
     react(),
     {
       name: 'mongodb-api',
       configureServer(server) {
+        connectDB(); // Only connect during dev server, not during build!
         server.middlewares.use(async (req, res, next) => {
           if (req.url === '/api/questions' && req.method === 'GET') {
             try {
