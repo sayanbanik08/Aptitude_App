@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 import { formatTimerDisplay } from '../utils/helpers'
 
 export default function Quiz({
@@ -25,6 +25,24 @@ export default function Quiz({
 }) {
   const meta = categoryMeta[selectedCategory] || { name: 'Mock Test', icon: 'fa-trophy' }
   const markers = ['A', 'B', 'C', 'D']
+
+  const quizContentRef = useRef(null)
+
+  useEffect(() => {
+    if (quizContentRef.current && window.renderMathInElement) {
+      try {
+        window.renderMathInElement(quizContentRef.current, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false
+        })
+      } catch (err) {
+        console.warn('KaTeX live rendering warning:', err)
+      }
+    }
+  }, [question])
 
   const examSections = mockExamSections || [
     { name: 'Numerical Ability (Aptitude)', start: 0, end: 19 },
@@ -76,7 +94,7 @@ export default function Quiz({
       </div>
 
       <div className="quiz-container">
-        <div className="quiz-main">
+        <div className="quiz-main" ref={quizContentRef}>
           <div className="quiz-question-section">
             <h3 id="quiz-question-number">Question {questionIndex + 1}</h3>
             <p id="quiz-question-text" className="quiz-question-text">{question.question}</p>

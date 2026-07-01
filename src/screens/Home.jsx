@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Home({ navigate, stats, startMockTest }) {
+export default function Home({ navigate, stats, startMockTest, onShuffle }) {
   return (
     <div id="home-screen" className="screen active">
       {/* Hero */}
@@ -30,6 +30,18 @@ export default function Home({ navigate, stats, startMockTest }) {
               <p className="footer-desc">
                 A premium preparation platform for quantitative, logical reasoning, and verbal ability exams. Practice, track your metrics, and ace your tests.
               </p>
+              <div className="footer-db-icon" onClick={() => navigate('categories')}>
+                <i className="fas fa-database"></i>
+                <span>Questions</span>
+              </div>
+              <div className="footer-shuffler-btn" onClick={onShuffle}>
+                <i className="fas fa-shuffle"></i>
+                <span>Shuffler</span>
+              </div>
+              <div className="footer-all-qs-btn" onClick={() => navigate('all-questions')}>
+                <i className="fas fa-list-ul"></i>
+                <span>See all qs</span>
+              </div>
             </div>
             
             <div className="footer-links-group">
@@ -38,7 +50,7 @@ export default function Home({ navigate, stats, startMockTest }) {
                 <ul>
                   <li>
                     <a href="#" onClick={(e) => { e.preventDefault(); navigate('categories') }}>
-                      Practice Categories
+                      Customize Categories
                     </a>
                   </li>
                   <li>

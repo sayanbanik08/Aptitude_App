@@ -1,7 +1,24 @@
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 
 export default function Review({ quizQuestions, userAnswers, navigate }) {
   const markers = ['A', 'B', 'C', 'D']
+  const reviewListRef = useRef(null)
+
+  useEffect(() => {
+    if (reviewListRef.current && window.renderMathInElement) {
+      try {
+        window.renderMathInElement(reviewListRef.current, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$', right: '$', display: false }
+          ],
+          throwOnError: false
+        })
+      } catch (err) {
+        console.warn('KaTeX live rendering warning:', err)
+      }
+    }
+  }, [quizQuestions])
 
   return (
     <div id="review-screen" className="screen active">
@@ -12,7 +29,7 @@ export default function Review({ quizQuestions, userAnswers, navigate }) {
 
         <h2 className="screen-title">Review Answers</h2>
 
-        <div id="review-list" className="review-list">
+        <div id="review-list" className="review-list" ref={reviewListRef}>
           {quizQuestions.map((q, i) => {
             const userAns = userAnswers[i]
             const isCorrect = userAns === q.correct

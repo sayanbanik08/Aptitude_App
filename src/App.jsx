@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { questionBank } from './data/questions'
 import { categoryMeta } from './data/categoryMeta'
-import { shuffleArray, getStorageData, saveQuizResult, calculateStats } from './utils/helpers'
+import { shuffleArray, getStorageData, saveStorageData, saveQuizResult, calculateStats } from './utils/helpers'
 import Navbar from './components/Navbar'
 import Home from './screens/Home'
 import Categories from './screens/Categories'
@@ -12,6 +12,8 @@ import Review from './screens/Review'
 import Dashboard from './screens/Dashboard'
 import Modal from './components/Modal'
 import Toast from './components/Toast'
+import AddQuestion from './screens/AddQuestion'
+import AllQuestions from './screens/AllQuestions'
 
 const mockExamSections = [
   { name: 'Numerical Ability (Aptitude)', start: 0, end: 19, timeInSeconds: 1260 },
@@ -27,6 +29,21 @@ export default function App() {
   const [difficulty, setDifficulty] = useState('easy')
   const [questionCount, setQuestionCount] = useState(5)
   const [timerEnabled, setTimerEnabled] = useState(true)
+  
+  const [customQuestions, setCustomQuestions] = useState(() => {
+    const data = getStorageData()
+    return data.customQuestions || {}
+  })
+  const [addQuestionCategory, setAddQuestionCategory] = useState(null)
+
+  const activeQuestionBank = React.useMemo(() => {
+    const merged = {}
+    const allKeys = new Set([...Object.keys(questionBank), ...Object.keys(customQuestions)])
+    for (const key of allKeys) {
+      merged[key] = [...(questionBank[key] || []), ...(customQuestions[key] || [])]
+    }
+    return merged
+  }, [customQuestions])
   
   const [quizQuestions, setQuizQuestions] = useState([])
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -159,24 +176,35 @@ export default function App() {
   }
 
   const selectCategory = (key) => {
+    let questions = [...(activeQuestionBank[key] || [])]
+    if (questions.length === 0) {
+      showToast('No questions available in this category', 'error')
+      return
+    }
+
+    questions = shuffleArray(questions)
+    const count = Math.min(10, questions.length)
+    const selectedQuestions = questions.slice(0, count)
+
     setSelectedCategory(key)
-    const meta = categoryMeta[key]
-    setDifficulty('easy')
-    setQuestionCount(5)
-    navigate('config')
+    setQuizQuestions(selectedQuestions)
+    setCurrentQuestionIndex(0)
+    setUserAnswers(new Array(selectedQuestions.length).fill(-1))
+    setQuizStartTime(Date.now())
+    setQuizEndTime(null)
+    setTimeRemaining(60)
+    setTimerEnabled(true)
+    setSubmittedSections([])
+    navigate('quiz')
   }
 
   const startQuiz = () => {
     if (!selectedCategory) return
 
-    let questions = [...(questionBank[selectedCategory] || [])]
-
-    if (difficulty !== 'all') {
-      questions = questions.filter(q => q.difficulty === difficulty)
-    }
+    let questions = [...(activeQuestionBank[selectedCategory] || [])]
 
     if (questions.length === 0) {
-      showToast('No questions available for this difficulty', 'error')
+      showToast('No questions available', 'error')
       return
     }
 
@@ -218,11 +246,11 @@ export default function App() {
   const beginMockTest = (mode) => {
     setMarkingMode(mode)
 
-    const numAbility = questionBank['numericalAbility'] || []
-    const verb = questionBank['verbalAbility'] || []
-    const logi = questionBank['reasoningAbility'] || []
-    const advReas = questionBank['advancedReasoningAbility'] || []
-    const advNum = questionBank['advancedNumericalAbility'] || []
+    const numAbility = activeQuestionBank['numericalAbility'] || []
+    const verb = activeQuestionBank['verbalAbility'] || []
+    const logi = activeQuestionBank['reasoningAbility'] || []
+    const advReas = activeQuestionBank['advancedReasoningAbility'] || []
+    const advNum = activeQuestionBank['advancedNumericalAbility'] || []
 
     const getSectionQuestions = (pool, count, categoryKey) => {
       let shuffledPool = shuffleArray(pool)
@@ -431,9 +459,123 @@ export default function App() {
     )
   }
 
+  const handleSaveQuestion = async (categoryKey, newQuestion) => {
+    try {
+      const response = await fetch('/api/add-question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ categoryKey, newQuestion })
+      })
+
+      if (response.ok) {
+        showToast('Question saved directly to questions.js!', 'success')
+        navigate('categories')
+        return
+      }
+    } catch (e) {
+      console.warn('API save failed, falling back to LocalStorage:', e)
+    }
+
+    // Fallback: save to customQuestions state and LocalStorage
+    const updatedCustom = {
+      ...customQuestions,
+      [categoryKey]: [...(customQuestions[categoryKey] || []), newQuestion]
+    }
+    setCustomQuestions(updatedCustom)
+
+    const data = getStorageData()
+    data.customQuestions = updatedCustom
+    saveStorageData(data)
+
+    showToast('Question saved to browser storage!', 'success')
+    navigate('categories')
+  }
+
   const showToast = (message, type = 'info') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const handleShuffleQuestions = () => {
+    showModal(
+      'Shuffle All Questions?',
+      'This will deeply shuffle every question within its own category. Question order AND option order will be completely randomized. This cannot be undone.',
+      async () => {
+        closeModal()
+        showToast('Shuffling questions...', 'info')
+        try {
+          const response = await fetch('/api/shuffle-questions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          })
+          if (response.ok) {
+            const result = await response.json()
+            showToast(`Shuffled ${result.totalShuffled} questions across all categories! Reload to see changes.`, 'success')
+            // Force page reload so the new question order from questions.js takes effect
+            setTimeout(() => window.location.reload(), 1500)
+          } else {
+            showToast('Shuffle failed. Are you running the dev server?', 'error')
+          }
+        } catch (e) {
+          console.error('Shuffle error:', e)
+          showToast('Shuffle failed — dev server API unavailable.', 'error')
+        }
+      }
+    )
+  }
+
+  const handleDeleteQuestion = async (categoryKey, questionId) => {
+    showModal(
+      'Delete Question?',
+      'Are you sure you want to permanently delete this question from the database? This action cannot be undone.',
+      async () => {
+        closeModal()
+        showToast('Deleting question...', 'info')
+        try {
+          const response = await fetch('/api/delete-question', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ categoryKey, questionId })
+          })
+
+          if (response.ok) {
+            showToast('Question deleted successfully!', 'success')
+            
+            // Re-sync local storage backup
+            const updatedCustom = {
+              ...customQuestions,
+              [categoryKey]: (customQuestions[categoryKey] || []).filter(q => q.id !== questionId)
+            }
+            setCustomQuestions(updatedCustom)
+            const data = getStorageData()
+            data.customQuestions = updatedCustom
+            saveStorageData(data)
+            
+            // Reload page to reflect updated file structure
+            setTimeout(() => window.location.reload(), 1000)
+            return
+          }
+        } catch (e) {
+          console.warn('API delete failed, falling back to LocalStorage:', e)
+        }
+
+        // Local storage fallback
+        const updatedCustom = {
+          ...customQuestions,
+          [categoryKey]: (customQuestions[categoryKey] || []).filter(q => q.id !== questionId)
+        }
+        setCustomQuestions(updatedCustom)
+        const data = getStorageData()
+        data.customQuestions = updatedCustom
+        saveStorageData(data)
+        showToast('Question deleted from browser storage!', 'success')
+      }
+    )
   }
 
   const showModal = (title, message, onConfirm, onCancel = null, options = null, config = {}) => {
@@ -457,10 +599,28 @@ export default function App() {
       
       <div className={`screens-container ${currentScreen === 'quiz' ? 'quiz-mode' : ''}`}>
         {currentScreen === 'home' && (
-          <Home navigate={navigate} stats={stats} startMockTest={startMockTest} />
+          <Home navigate={navigate} stats={stats} startMockTest={startMockTest} onShuffle={handleShuffleQuestions} />
         )}
         {currentScreen === 'categories' && (
-          <Categories questionBank={questionBank} categoryMeta={categoryMeta} stats={stats} selectCategory={selectCategory} />
+          <Categories 
+            questionBank={activeQuestionBank} 
+            categoryMeta={categoryMeta} 
+            stats={stats} 
+            selectCategory={selectCategory}
+            onAddQuestionClick={(catKey) => {
+              setAddQuestionCategory(catKey)
+              navigate('add-question')
+            }}
+          />
+        )}
+        {currentScreen === 'add-question' && addQuestionCategory && (
+          <AddQuestion
+            categoryKey={addQuestionCategory}
+            categoryMeta={categoryMeta}
+            existingQuestions={activeQuestionBank}
+            onSave={handleSaveQuestion}
+            onCancel={() => navigate('categories')}
+          />
         )}
         {currentScreen === 'config' && (
           <Config 
@@ -522,6 +682,14 @@ export default function App() {
           <Dashboard
             stats={stats}
             categoryMeta={categoryMeta}
+          />
+        )}
+        {currentScreen === 'all-questions' && (
+          <AllQuestions
+            questionBank={activeQuestionBank}
+            categoryMeta={categoryMeta}
+            navigate={navigate}
+            onDeleteQuestion={handleDeleteQuestion}
           />
         )}
       </div>
