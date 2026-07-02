@@ -98,6 +98,13 @@ export default function Quiz({
           <div className="quiz-question-section">
             <h3 id="quiz-question-number">Question {questionIndex + 1}</h3>
             <p id="quiz-question-text" className="quiz-question-text">{question.question}</p>
+            {question.questionImage && (
+              <img
+                src={question.questionImage}
+                alt="Question"
+                style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', borderRadius: '8px', marginTop: '12px', border: '1px solid var(--border-color)' }}
+              />
+            )}
           </div>
 
           <div id="quiz-options" className="quiz-options">
@@ -110,7 +117,16 @@ export default function Quiz({
                 tabIndex="0"
               >
                 <div className="option-marker">{markers[i]}</div>
-                <div className="option-text">{option}</div>
+                <div className="option-text" style={{ flex: 1 }}>
+                  {option}
+                  {question.optionImages?.[i] && (
+                    <img
+                      src={question.optionImages[i]}
+                      alt={`Option ${markers[i]}`}
+                      style={{ display: 'block', maxWidth: '100%', maxHeight: '120px', objectFit: 'contain', marginTop: '8px', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                    />
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -90,9 +90,17 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [showMathKeyboard, setShowMathKeyboard] = useState(false)
   const [glowRotation, setGlowRotation] = useState(0)
-  
+
+  // Image upload state
+  const [questionImage, setQuestionImage] = useState(null)   // base64 string
+  const [optionImages, setOptionImages] = useState([null, null, null, null]) // base64 per option
+  const [uploadingQuestion, setUploadingQuestion] = useState(false)
+  const [uploadingOption, setUploadingOption] = useState([false, false, false, false])
+
   const textareaRef = useRef(null)
   const previewRef = useRef(null)
+  const questionImgRef = useRef(null)
+  const optionImgRefs = useRef([null, null, null, null])
 
   // Compute X and Y offsets for the orbiting accretion disk
   const angleRad = (glowRotation * Math.PI) / 180
@@ -163,6 +171,54 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
     setOptions(updatedOptions)
   }
 
+  // Convert file to base64
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    if (file.size > 2 * 1024 * 1024) {
+      reject(new Error('Image must be smaller than 2MB'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  // Handle question image upload
+  const handleQuestionImageUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingQuestion(true)
+    try {
+      const base64 = await fileToBase64(file)
+      setQuestionImage(base64)
+    } catch (err) {
+      setError(err.message || 'Failed to load image')
+    } finally {
+      setUploadingQuestion(false)
+      e.target.value = ''
+    }
+  }
+
+  // Handle option image upload
+  const handleOptionImageUpload = async (e, idx) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const updatingArr = [false, false, false, false]
+    updatingArr[idx] = true
+    setUploadingOption(updatingArr)
+    try {
+      const base64 = await fileToBase64(file)
+      const updated = [...optionImages]
+      updated[idx] = base64
+      setOptionImages(updated)
+    } catch (err) {
+      setError(err.message || 'Failed to load image')
+    } finally {
+      setUploadingOption([false, false, false, false])
+      e.target.value = ''
+    }
+  }
+
   const insertAtCursor = (textToInsert) => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -187,13 +243,13 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
   const handleSubmit = (e) => {
     e.preventDefault()
 
-    if (!questionText.trim()) {
-      setError('Question text cannot be empty')
+    if (!questionText.trim() && !questionImage) {
+      setError('Question text or image cannot be empty')
       return
     }
 
-    if (options.some(opt => !opt.trim())) {
-      setError('All 4 options must be filled out')
+    if (options.some((opt, i) => !opt.trim() && !optionImages[i])) {
+      setError('All 4 options must be filled (text or image)')
       return
     }
 
@@ -204,7 +260,10 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
       question: questionText.trim(),
       options: options.map(opt => opt.trim()),
       correct: correctOption,
-      category: categoryKey
+      category: categoryKey,
+      // Include images only if they exist
+      ...(questionImage ? { questionImage } : {}),
+      optionImages: optionImages
     }
 
     onSave(categoryKey, newQuestion)
@@ -279,16 +338,53 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
                     </span>
                   )}
                 </label>
-                
-                {/* Math Keyboard Toggle Button */}
-                <button
-                  type="button"
-                  className="btn-math-toggle"
-                  onClick={() => setShowMathKeyboard(!showMathKeyboard)}
-                >
-                  <i className="fas fa-calculator"></i> Math Keyboard
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {/* Camera Upload for Question */}
+                  <input
+                    ref={questionImgRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    style={{ display: 'none' }}
+                    onChange={handleQuestionImageUpload}
+                  />
+                  <button
+                    type="button"
+                    className="btn-camera-upload"
+                    onClick={() => questionImgRef.current?.click()}
+                    title="Upload question image"
+                    disabled={uploadingQuestion}
+                  >
+                    {uploadingQuestion
+                      ? <i className="fas fa-spinner fa-spin"></i>
+                      : <i className="fas fa-camera"></i>
+                    }
+                  </button>
+                  {/* Math Keyboard Toggle Button */}
+                  <button
+                    type="button"
+                    className="btn-math-toggle"
+                    onClick={() => setShowMathKeyboard(!showMathKeyboard)}
+                  >
+                    <i className="fas fa-calculator"></i> Math Keyboard
+                  </button>
+                </div>
               </div>
+
+              {/* Question image preview */}
+              {questionImage && (
+                <div className="img-upload-preview">
+                  <img src={questionImage} alt="Question" className="img-upload-thumb" />
+                  <button
+                    type="button"
+                    className="img-remove-btn"
+                    onClick={() => setQuestionImage(null)}
+                    title="Remove image"
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              )}
 
               {/* Math Keyboard Popup Panel */}
               {showMathKeyboard && (
@@ -393,17 +489,59 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
 
             <div className="form-group">
               <label className="smart-label">Options</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {options.map((option, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 'bold', width: '20px', color: 'var(--text-muted)' }}>{String.fromCharCode(65 + idx)}</span>
-                    <input
-                      type="text"
-                      value={option}
-                      onChange={(e) => handleOptionChange(idx, e.target.value)}
-                      placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                      className="smart-input"
-                    />
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', width: '20px', color: 'var(--text-muted)', flexShrink: 0 }}>{String.fromCharCode(65 + idx)}</span>
+                      <input
+                        type="text"
+                        value={option}
+                        onChange={(e) => handleOptionChange(idx, e.target.value)}
+                        placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                        className="smart-input"
+                        style={{ flex: 1 }}
+                      />
+                      {/* Hidden file input per option */}
+                      <input
+                        ref={el => optionImgRefs.current[idx] = el}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleOptionImageUpload(e, idx)}
+                      />
+                      <button
+                        type="button"
+                        className="btn-camera-upload"
+                        onClick={() => optionImgRefs.current[idx]?.click()}
+                        title={`Upload image for Option ${String.fromCharCode(65 + idx)}`}
+                        disabled={uploadingOption[idx]}
+                      >
+                        {uploadingOption[idx]
+                          ? <i className="fas fa-spinner fa-spin"></i>
+                          : <i className="fas fa-camera"></i>
+                        }
+                      </button>
+                    </div>
+                    {/* Option image preview */}
+                    {optionImages[idx] && (
+                      <div className="img-upload-preview" style={{ marginLeft: '30px' }}>
+                        <img src={optionImages[idx]} alt={`Option ${String.fromCharCode(65 + idx)}`} className="img-upload-thumb" />
+                        <button
+                          type="button"
+                          className="img-remove-btn"
+                          onClick={() => {
+                            const updated = [...optionImages]
+                            updated[idx] = null
+                            setOptionImages(updated)
+                          }}
+                          title="Remove image"
+                        >
+                          <i className="fas fa-times"></i>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
