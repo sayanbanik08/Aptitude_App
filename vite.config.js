@@ -96,6 +96,23 @@ export default defineConfig({
                 res.end(JSON.stringify({ success: false, error: error.message }));
               }
             });
+          } else if (req.url === '/api/shuffle-questions' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', async () => {
+              try {
+                if (!questionsCollection) throw new Error("Database not connected");
+                // Count total questions in DB
+                const total = await questionsCollection.countDocuments({});
+                // Shuffling order is handled client-side via shuffleArray().
+                // Here we just confirm success and return total count.
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, totalShuffled: total }));
+              } catch (error) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: error.message }));
+              }
+            });
           } else {
             next();
           }
