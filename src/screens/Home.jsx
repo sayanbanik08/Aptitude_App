@@ -49,24 +49,8 @@ export default function Home({ navigate, stats, startMockTest, onShuffle }) {
                 <h4>Practice</h4>
                 <ul>
                   <li>
-                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('categories') }}>
-                      Customize Categories
-                    </a>
-                  </li>
-                  <li>
                     <a href="#" onClick={(e) => { e.preventDefault(); startMockTest() }}>
                       Take Mock Test
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              
-              <div className="footer-column">
-                <h4>Dashboard</h4>
-                <ul>
-                  <li>
-                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('dashboard') }}>
-                      Performance Stats
                     </a>
                   </li>
                 </ul>
@@ -75,7 +59,7 @@ export default function Home({ navigate, stats, startMockTest, onShuffle }) {
           </div>
           
           <div className="footer-bottom">
-            <p>&copy; {new Date().getFullYear()} AptitudeX. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} IQ. All rights reserved.</p>
             <div className="footer-meta-links">
               <span>Built for Excellence</span>
             </div>
