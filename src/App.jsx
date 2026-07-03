@@ -14,6 +14,7 @@ import Modal from './components/Modal'
 import Toast from './components/Toast'
 import AddQuestion from './screens/AddQuestion'
 import AllQuestions from './screens/AllQuestions'
+import MustKnown from './screens/MustKnown'
 
 const mockExamSections = [
   { name: 'Numerical Ability (Aptitude)', start: 0, end: 19, timeInSeconds: 1260 },
@@ -722,6 +723,9 @@ export default function App() {
             navigate={navigate}
             onDeleteQuestion={handleDeleteQuestion}
           />
+        )}
+        {currentScreen === 'must-known' && (
+          <MustKnown navigate={navigate} />
         )}
       </div>
 

@@ -89,6 +89,7 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
   const [error, setError] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [showMathKeyboard, setShowMathKeyboard] = useState(false)
+  const [activeOptionMathKeyboard, setActiveOptionMathKeyboard] = useState(-1) // -1 = none, 0-3 = option index
   const [glowRotation, setGlowRotation] = useState(0)
 
   // Image upload state
@@ -101,28 +102,42 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
   const previewRef = useRef(null)
   const questionImgRef = useRef(null)
   const optionImgRefs = useRef([null, null, null, null])
+  const optionInputRefs = useRef([null, null, null, null])
+  const optionPreviewRefs = useRef([null, null, null, null])
 
   // Compute X and Y offsets for the orbiting accretion disk
   const angleRad = (glowRotation * Math.PI) / 180
   const glowX = (6 * Math.cos(angleRad)).toFixed(2)
   const glowY = (6 * Math.sin(angleRad)).toFixed(2)
 
-  // Trigger KaTeX render on preview content change
+  // Trigger KaTeX render on preview content change (question + options)
   useEffect(() => {
+    const katexConfig = {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false }
+      ],
+      throwOnError: false
+    }
+    // Render question preview
     if (previewRef.current && window.renderMathInElement) {
       try {
-        window.renderMathInElement(previewRef.current, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false }
-          ],
-          throwOnError: false
-        })
+        window.renderMathInElement(previewRef.current, katexConfig)
       } catch (err) {
         console.warn('KaTeX live rendering warning:', err)
       }
     }
-  }, [questionText])
+    // Render each option preview
+    optionPreviewRefs.current.forEach((ref) => {
+      if (ref && window.renderMathInElement) {
+        try {
+          window.renderMathInElement(ref, katexConfig)
+        } catch (err) {
+          console.warn('KaTeX option rendering warning:', err)
+        }
+      }
+    })
+  }, [questionText, options])
 
   // Build a flat indexed list of all questions across all categories
   const indexedQuestions = useMemo(() => {
@@ -219,24 +234,47 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
     }
   }
 
-  const insertAtCursor = (textToInsert) => {
-    const textarea = textareaRef.current
-    if (!textarea) return
+  // Generic insert-at-cursor: works for question textarea or any option input
+  const insertAtCursor = (textToInsert, targetRef, setter) => {
+    const el = targetRef?.current || targetRef
+    if (!el) return
 
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const text = textarea.value
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const text = el.value
     const before = text.substring(0, start)
     const after = text.substring(end, text.length)
 
     const newText = before + textToInsert + after
-    setQuestionText(newText)
+    setter(newText)
     setGlowRotation(prev => (prev + 20) % 360)
 
     // Keep cursor positioned after inserted token
     setTimeout(() => {
-      textarea.focus()
-      textarea.selectionStart = textarea.selectionEnd = start + textToInsert.length
+      el.focus()
+      el.selectionStart = el.selectionEnd = start + textToInsert.length
+    }, 50)
+  }
+
+  // Shortcut: insert into question textarea
+  const insertIntoQuestion = (textToInsert) => {
+    insertAtCursor(textToInsert, textareaRef, setQuestionText)
+  }
+
+  // Shortcut: insert into a specific option input
+  const insertIntoOption = (textToInsert, idx) => {
+    const inputEl = optionInputRefs.current[idx]
+    if (!inputEl) return
+    const start = inputEl.selectionStart
+    const end = inputEl.selectionEnd
+    const text = inputEl.value
+    const before = text.substring(0, start)
+    const after = text.substring(end, text.length)
+    const newText = before + textToInsert + after
+    handleOptionChange(idx, newText)
+    setTimeout(() => {
+      inputEl.focus()
+      inputEl.selectionStart = inputEl.selectionEnd = start + textToInsert.length
     }, 50)
   }
 
@@ -344,7 +382,6 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
                     ref={questionImgRef}
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     style={{ display: 'none' }}
                     onChange={handleQuestionImageUpload}
                   />
@@ -401,7 +438,7 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
                         key={idx}
                         type="button"
                         className="math-key-btn"
-                        onClick={() => insertAtCursor(tmpl.code)}
+                        onClick={() => insertIntoQuestion(tmpl.code)}
                       >
                         <span className="math-key-label">{tmpl.label}</span>
                       </button>
@@ -492,9 +529,10 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {options.map((option, idx) => (
                   <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ fontSize: '14px', fontWeight: 'bold', width: '20px', color: 'var(--text-muted)', flexShrink: 0 }}>{String.fromCharCode(65 + idx)}</span>
                       <input
+                        ref={el => optionInputRefs.current[idx] = el}
                         type="text"
                         value={option}
                         onChange={(e) => handleOptionChange(idx, e.target.value)}
@@ -502,15 +540,23 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
                         className="smart-input"
                         style={{ flex: 1 }}
                       />
+                      {/* Math keyboard toggle per option */}
+                      <button
+                        type="button"
+                        className={`btn-option-math ${activeOptionMathKeyboard === idx ? 'active' : ''}`}
+                        onClick={() => setActiveOptionMathKeyboard(activeOptionMathKeyboard === idx ? -1 : idx)}
+                        title={`Math keyboard for Option ${String.fromCharCode(65 + idx)}`}
+                      >
+                        <i className="fas fa-calculator"></i>
+                      </button>
                       {/* Hidden file input per option */}
-                      <input
-                        ref={el => optionImgRefs.current[idx] = el}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handleOptionImageUpload(e, idx)}
-                      />
+                    <input
+                      ref={el => optionImgRefs.current[idx] = el}
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={(e) => handleOptionImageUpload(e, idx)}
+                    />
                       <button
                         type="button"
                         className="btn-camera-upload"
@@ -524,6 +570,42 @@ export default function AddQuestion({ categoryKey, categoryMeta, existingQuestio
                         }
                       </button>
                     </div>
+
+                    {/* Inline math keyboard for this option */}
+                    {activeOptionMathKeyboard === idx && (
+                      <div className="option-math-keyboard" style={{ marginLeft: '28px' }}>
+                        <div className="option-math-keyboard-grid">
+                          {MATH_TEMPLATES.map((tmpl, ti) => (
+                            <button
+                              key={ti}
+                              type="button"
+                              className="option-math-key"
+                              onClick={() => insertIntoOption(tmpl.code, idx)}
+                              title={tmpl.label}
+                            >
+                              {tmpl.label.split(' ').pop()}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Live KaTeX preview for this option */}
+                    {option.includes('$') && (
+                      <div className="option-live-preview" style={{ marginLeft: '28px' }}>
+                        <div className="option-live-preview-header">
+                          <i className="fas fa-eye"></i> Option {String.fromCharCode(65 + idx)} Preview
+                        </div>
+                        <div
+                          ref={el => optionPreviewRefs.current[idx] = el}
+                          className="option-live-preview-body"
+                          key={option}
+                        >
+                          {option}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Option image preview */}
                     {optionImages[idx] && (
                       <div className="img-upload-preview" style={{ marginLeft: '30px' }}>

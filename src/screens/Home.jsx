@@ -42,6 +42,10 @@ export default function Home({ navigate, stats, startMockTest, onShuffle }) {
                 <i className="fas fa-list-ul"></i>
                 <span>See all qs</span>
               </div>
+              <div className="footer-all-qs-btn" onClick={() => navigate('must-known')} style={{ marginTop: '10px' }}>
+                <i className="fas fa-brain"></i>
+                <span>Must Known</span>
+              </div>
             </div>
             
             <div className="footer-links-group">
