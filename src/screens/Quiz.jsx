@@ -94,7 +94,7 @@ export default function Quiz({
       </div>
 
       <div className="quiz-container">
-        <div className="quiz-main" ref={quizContentRef}>
+        <div className="quiz-main" ref={quizContentRef} key={questionIndex}>
           <div className="quiz-question-section">
             <h3 id="quiz-question-number">Question {questionIndex + 1}</h3>
             <p id="quiz-question-text" className="quiz-question-text">{question.question}</p>
@@ -110,7 +110,7 @@ export default function Quiz({
           <div id="quiz-options" className="quiz-options">
             {question.options.map((option, i) => (
               <div
-                key={i}
+                key={`q${questionIndex}-opt${i}`}
                 className={`quiz-option ${userAnswers[questionIndex] === i ? 'selected' : ''}`}
                 onClick={() => selectOption(i)}
                 role="button"
